@@ -156,43 +156,32 @@ if submitted and ticker and buy_price > 0 and shares > 0:
 if st.session_state.portfolio:
     st.subheader("📊 Your Portfolio")
     results = []
-
-    # Determine which stock to remove (if any)
-    remove_idx = None
+    remove_idx = None  # track which stock to remove
 
     for idx, stock in enumerate(st.session_state.portfolio):
         res = check_personal_stock(stock["ticker"], stock["buy_price"], stock["shares"])
         res["Last Updated"] = stock.get("timestamp", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         results.append(res)
 
-        # Create remove button for each stock
+        # Remove button
         if st.button(f"❌ Remove {stock['ticker']}", key=f"remove_{idx}"):
             remove_idx = idx
 
-    # Remove stock outside the loop
+    # Remove outside the loop
     if remove_idx is not None:
         st.session_state.portfolio.pop(remove_idx)
-        st.experimental_rerun()  # Safe rerun after removal
+        st.experimental_rerun()
 
-    # Display the table
+    # Show table
     df_results = pd.DataFrame(results)
     st.dataframe(df_results, use_container_width=True)
 
-    # --- Add remove buttons ---
-    for idx, stock in enumerate(st.session_state.portfolio):
-        if st.button(f"❌ Remove {stock['ticker']}", key=f"remove_{idx}"):
-            st.session_state.portfolio.pop(idx)
-            st.experimental_rerun()  # Refresh after removal
-
-    st.dataframe(df_results, use_container_width=True)
-
-    # --- Optional chart for last stock ---
+    # Chart for last added ticker
     last_ticker = st.session_state.portfolio[-1]["ticker"]
     df_chart = fetch_data(last_ticker, period="6mo")
     if df_chart is not None:
         st.subheader(f"📉 {last_ticker} Price Chart (6mo)")
         st.line_chart(df_chart["Close"])
-
 
 # In[ ]:
 
