@@ -183,6 +183,41 @@ if st.session_state.portfolio:
         st.subheader(f"📉 {last_ticker} Price Chart (6mo)")
         st.line_chart(df_chart["Close"])
 
+
+ # --- NEW: Suggested Buys (BELOW THE CHART) ---
+        st.subheader("🧠 Suggested Buys (RSI & momentum)")
+        st.caption("Candidates with **RSI ≤ 35** and **5-day % change ≥ 0** (attempting to catch early reversals; not financial advice).")
+
+        default_watchlist = "AAPL, MSFT, NVDA, AMZN, GOOGL, META, TSLA, JPM, V, MA, NFLX, AMD, INTC, TSM, AVGO, PTSB.IR"
+        watchlist_str = st.text_input(
+            "Watchlist (comma-separated tickers):",
+            value=default_watchlist,
+            help="Add any tickers you want me to scan."
+        )
+        rsi_cutoff = st.slider("RSI max (oversold threshold)", min_value=20, max_value=50, value=35, step=1)
+
+        if watchlist_str.strip():
+            tickers = [t.strip() for t in watchlist_str.split(",")]
+            suggestions, ranked_by_rsi = analyze_watchlist(tickers, rsi_threshold=rsi_cutoff)
+
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("**Suggested Buys**")
+                if suggestions is not None and not suggestions.empty:
+                    st.dataframe(suggestions.reset_index(drop=True), use_container_width=True)
+                else:
+                    st.info("No suggestions met the criteria today. Try widening the RSI threshold or expanding your watchlist.")
+
+            with col2:
+                st.markdown("**All – ranked by RSI (lowest first)**")
+                if ranked_by_rsi is not None and not ranked_by_rsi.empty:
+                    st.dataframe(ranked_by_rsi.reset_index(drop=True), use_container_width=True)
+                else:
+                    st.write("—")
+
+else:
+    st.info("Add at least one stock to see your portfolio and chart.")
+
 # In[ ]:
 
 
