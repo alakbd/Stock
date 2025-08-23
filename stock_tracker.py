@@ -21,78 +21,128 @@
 
 #RSI between 30–70 → Neutral / Hold
 
+# stock_tracker_app.py
+import streamlit as st
 import yfinance as yf
 import pandas as pd
-import streamlit as st
+import numpy as np
+import warnings
+
+warnings.simplefilter(action="ignore", category=FutureWarning)
+
+# --- Parameters ---
+RSI_PERIOD = 14
+PROFIT_TARGET = 0.05  # 5% gain to sell
+DIP_THRESHOLD = 0.03  # 3% drop to buy more
 
 # --- RSI Calculation ---
 def calculate_RSI(series, period=14):
+    series = pd.to_numeric(series, errors="coerce").dropna()
+    if len(series) < period:
+        return pd.Series([np.nan] * len(series), index=series.index)
+    
     delta = series.diff()
-    gain = delta.where(delta > 0, 0)
-    loss = -delta.where(delta < 0, 0)
-
-    avg_gain = gain.rolling(window=period).mean()
-    avg_loss = loss.rolling(window=period).mean()
-
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    
+    avg_gain = gain.rolling(period, min_periods=1).mean()
+    avg_loss = loss.rolling(period, min_periods=1).mean()
     rs = avg_gain / avg_loss
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
-# --- Data Fetch ---
-def fetch_data(ticker, period="6mo"):
+# --- Fetch Data ---
+def fetch_data(ticker, period="6mo", interval="1d"):
     try:
-        df = yf.download(ticker, period=period, interval="1d")
-        if df.empty:
+        df = yf.download(ticker, period=period, interval=interval, progress=False)
+        if df.empty or "Close" not in df.columns:
             return None
         return df
-    except:
+    except Exception:
         return None
 
 # --- Build Frame ---
-def build_frame(df, ma_period=50, rsi_period=14):
+def build_frame(df):
+    if df is None or df.empty:
+        return None
+
+    close = df["Close"]
+    if isinstance(close, pd.DataFrame):  # sometimes multi-column
+        close = close.iloc[:, 0]
+
+    close = pd.to_numeric(close, errors="coerce")
     frame = pd.DataFrame(index=df.index)
-    frame["Close"] = df["Close"]
-    frame[f"MA{ma_period}"] = df["Close"].rolling(window=ma_period).mean()
-    frame["RSI"] = calculate_RSI(df["Close"], rsi_period)
+    frame["Close"] = close
+    frame["RSI"] = calculate_RSI(frame["Close"], RSI_PERIOD)
     return frame
 
-# --- Signal Generation ---
-def generate_signal(row, ma_period=50):
-    if row["Close"] > row[f"MA{ma_period}"] and row["RSI"] < 30:
-        return "BUY ✅"
-    elif row["Close"] < row[f"MA{ma_period}"] and row["RSI"] > 70:
-        return "SELL ❌"
+# --- Check personal stock ---
+def check_personal_stock(ticker, buy_price, shares):
+    df = fetch_data(ticker)
+    frame = build_frame(df)
+    if frame is None:
+        return {"Ticker": ticker, "Error": "No data"}
+
+    latest = frame.tail(1).iloc[0]
+    current_price = latest["Close"]
+    rsi = latest["RSI"]
+
+    if pd.isna(current_price) or pd.isna(rsi):
+        return {"Ticker": ticker, "Error": "No latest data"}
+
+    # Determine action
+    if current_price >= buy_price * (1 + PROFIT_TARGET) or rsi > 70:
+        action = "SELL ❌"
+    elif current_price <= buy_price * (1 - DIP_THRESHOLD) or rsi < 35:
+        action = "BUY MORE ✅"
     else:
-        return "HOLD ➖"
+        action = "HOLD ➖"
+
+    return {
+        "Ticker": ticker,
+        "Buy Price (€)": round(buy_price, 2),
+        "Current Price (€)": round(current_price, 2),
+        "Shares": shares,
+        "RSI": round(rsi, 2),
+        "Action": action,
+    }
 
 # --- Streamlit UI ---
-st.title("📈 Personal Stock Tracker (MA50 + RSI Strategy)")
+st.set_page_config(page_title="📈 Personal Stock Tracker", layout="wide")
+st.title("📈 Personal Stock Tracker")
 
-ticker = st.text_input("Enter Stock Ticker (e.g. PTSB.IR, AAPL):")
-buy_price = st.number_input("Enter your Buy Price (€):", min_value=0.0, format="%.2f")
-shares = st.number_input("Number of Shares:", min_value=0, step=1)
+st.markdown("Enter your stocks and check if you should **Buy, Sell, or Hold** based on RSI and profit target rules.")
 
-if st.button("Check Stock"):
-    df = fetch_data(ticker, period="1y")
-    if df is None:
-        st.error("No data found for this ticker.")
-    else:
-        frame = build_frame(df)
-        latest = frame.iloc[-1]
-        signal = generate_signal(latest)
+with st.form("stock_form", clear_on_submit=True):
+    ticker = st.text_input("Ticker (e.g., AAPL, PTSB.IR)")
+    buy_price = st.number_input("Buy Price (€)", min_value=0.0, step=0.01)
+    shares = st.number_input("Number of Shares", min_value=1, step=1)
+    submitted = st.form_submit_button("Add Stock")
 
-        st.subheader(f"📊 {ticker} Analysis")
-        st.write(f"**Latest Price:** €{latest['Close']:.2f}")
-        st.write(f"**MA50:** €{latest['MA50']:.2f}")
-        st.write(f"**RSI:** {latest['RSI']:.2f}")
-        st.write(f"**Signal:** {signal}")
+if "portfolio" not in st.session_state:
+    st.session_state.portfolio = []
 
-        if buy_price > 0:
-            profit = (latest['Close'] - buy_price) / buy_price * 100
-            st.write(f"**Your Buy Price:** €{buy_price:.2f}")
-            st.write(f"**Shares Held:** {shares}")
-            st.write(f"**Profit/Loss:** {profit:.2f}%")
+if submitted and ticker and buy_price > 0 and shares > 0:
+    st.session_state.portfolio.append(
+        {"ticker": ticker.strip(), "buy_price": buy_price, "shares": shares}
+    )
 
+if st.session_state.portfolio:
+    st.subheader("📊 Your Portfolio")
+    results = []
+    for stock in st.session_state.portfolio:
+        res = check_personal_stock(stock["ticker"], stock["buy_price"], stock["shares"])
+        results.append(res)
+
+    df_results = pd.DataFrame(results)
+    st.dataframe(df_results, use_container_width=True)
+
+    # Optional: show stock chart for the last selected ticker
+    last_ticker = st.session_state.portfolio[-1]["ticker"]
+    df_chart = fetch_data(last_ticker, period="6mo")
+    if df_chart is not None:
+        st.subheader(f"📉 {last_ticker} Price Chart (6mo)")
+        st.line_chart(df_chart["Close"])
 
 
 # In[ ]:
