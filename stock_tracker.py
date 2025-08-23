@@ -117,6 +117,60 @@ def check_personal_stock(ticker, buy_price, shares):
         "Action": action,
     }
 
+# --- NEW: Scan a watchlist and suggest buys ---
+def analyze_watchlist(tickers, rsi_threshold=35):
+    rows = []
+    for t in tickers:
+        t = t.strip()
+        if not t:
+            continue
+        df = fetch_data(t, period="6mo", interval="1d")
+        fr = build_frame(df)
+        if fr is None or fr.empty:
+            continue
+
+        # compute metrics
+        last = fr.tail(1).iloc[0]
+        if pd.isna(last["RSI"]) or pd.isna(last["Close"]):
+            continue
+
+        # 5-day momentum; protect for short history
+        if len(fr) >= 6:
+            ret_5d = (fr["Close"].iloc[-1] / fr["Close"].iloc[-6] - 1) * 100
+        else:
+            ret_5d = np.nan
+
+        # 50d trend slope (last 10 days SMA50 change)
+        if fr["SMA50"].notna().sum() >= 10:
+            sma50_slope = fr["SMA50"].iloc[-1] - fr["SMA50"].iloc[-10]
+        else:
+            sma50_slope = np.nan
+
+        rows.append({
+            "Ticker": t,
+            "Close": round(float(last["Close"]), 2),
+            "RSI": round(float(last["RSI"]), 2),
+            "5D %": None if pd.isna(ret_5d) else round(float(ret_5d), 2),
+            "50D Trend": None if pd.isna(sma50_slope) else round(float(sma50_slope), 2),
+        })
+
+    # ✅ Always return two DataFrames
+    if not rows:
+        empty = pd.DataFrame(columns=["Ticker", "Close", "RSI", "5D %", "50D Trend"])
+        return empty, empty
+
+    df_out = pd.DataFrame(rows)
+
+    # Suggestion rule: oversold + momentum stabilizing
+    mask_candidate = (df_out["RSI"] <= rsi_threshold) & (df_out["5D %"].fillna(-999) >= 0)
+    suggestions = df_out[mask_candidate].copy()
+
+    # Rank by RSI asc, then 5D% desc
+    if not suggestions.empty:
+        suggestions = suggestions.sort_values(by=["RSI", "5D %"], ascending=[True, False])
+
+    return suggestions, df_out.sort_values(by="RSI")
+
 # --- Streamlit UI ---
 st.set_page_config(page_title="📈 Personal Stock Tracker", layout="wide")
 st.title("📈 Personal Stock Tracker")
