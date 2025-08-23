@@ -25,7 +25,20 @@ import yfinance as yf
 import pandas as pd
 import streamlit as st
 
-# --- Functions ---
+# --- RSI Calculation ---
+def calculate_RSI(series, period=14):
+    delta = series.diff()
+    gain = delta.where(delta > 0, 0)
+    loss = -delta.where(delta < 0, 0)
+
+    avg_gain = gain.rolling(window=period).mean()
+    avg_loss = loss.rolling(window=period).mean()
+
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
+
+# --- Data Fetch ---
 def fetch_data(ticker, period="6mo"):
     try:
         df = yf.download(ticker, period=period, interval="1d")
@@ -35,60 +48,51 @@ def fetch_data(ticker, period="6mo"):
     except:
         return None
 
-def build_frame(df):
+# --- Build Frame ---
+def build_frame(df, ma_period=50, rsi_period=14):
     frame = pd.DataFrame(index=df.index)
     frame["Close"] = df["Close"]
-    frame["MA20"] = df["Close"].rolling(window=20).mean()
-    frame["MA50"] = df["Close"].rolling(window=50).mean()
+    frame[f"MA{ma_period}"] = df["Close"].rolling(window=ma_period).mean()
+    frame["RSI"] = calculate_RSI(df["Close"], rsi_period)
     return frame
 
-def generate_signal(frame, buy_price=None):
-    if frame is None or frame.empty:
-        return "No Data", None
-    latest = frame.iloc[-1]
-    price = latest["Close"]
-
-    # Simple rule: MA crossover
-    if latest["MA20"] > latest["MA50"]:
-        signal = "BUY ✅"
-    elif latest["MA20"] < latest["MA50"]:
-        signal = "SELL ❌"
+# --- Signal Generation ---
+def generate_signal(row, ma_period=50):
+    if row["Close"] > row[f"MA{ma_period}"] and row["RSI"] < 30:
+        return "BUY ✅"
+    elif row["Close"] < row[f"MA{ma_period}"] and row["RSI"] > 70:
+        return "SELL ❌"
     else:
-        signal = "HOLD ➖"
-
-    # Profit check if buy_price is given
-    profit = None
-    if buy_price:
-        profit = (price - buy_price) / buy_price * 100
-
-    return signal, profit
+        return "HOLD ➖"
 
 # --- Streamlit UI ---
-st.title("📈 Personal Stock Tracker")
+st.title("📈 Personal Stock Tracker (MA50 + RSI Strategy)")
 
-# User inputs
 ticker = st.text_input("Enter Stock Ticker (e.g. PTSB.IR, AAPL):")
 buy_price = st.number_input("Enter your Buy Price (€):", min_value=0.0, format="%.2f")
 shares = st.number_input("Number of Shares:", min_value=0, step=1)
 
 if st.button("Check Stock"):
-    df = fetch_data(ticker)
+    df = fetch_data(ticker, period="1y")
     if df is None:
         st.error("No data found for this ticker.")
     else:
         frame = build_frame(df)
-        signal, profit = generate_signal(frame, buy_price)
-
-        latest_price = frame["Close"].iloc[-1]
+        latest = frame.iloc[-1]
+        signal = generate_signal(latest)
 
         st.subheader(f"📊 {ticker} Analysis")
-        st.write(f"**Latest Price:** €{latest_price:.2f}")
+        st.write(f"**Latest Price:** €{latest['Close']:.2f}")
+        st.write(f"**MA50:** €{latest['MA50']:.2f}")
+        st.write(f"**RSI:** {latest['RSI']:.2f}")
         st.write(f"**Signal:** {signal}")
 
         if buy_price > 0:
+            profit = (latest['Close'] - buy_price) / buy_price * 100
             st.write(f"**Your Buy Price:** €{buy_price:.2f}")
             st.write(f"**Shares Held:** {shares}")
             st.write(f"**Profit/Loss:** {profit:.2f}%")
+
 
 
 # In[ ]:
