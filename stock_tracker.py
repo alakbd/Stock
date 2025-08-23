@@ -26,6 +26,9 @@
 # coding: utf-8
 
 # stock_tracker_app.py
+#!/usr/bin/env python
+# coding: utf-8
+
 import streamlit as st
 import yfinance as yf
 import pandas as pd
@@ -117,9 +120,9 @@ def check_personal_stock(ticker, buy_price, shares):
 # --- Streamlit UI ---
 st.set_page_config(page_title="📈 Personal Stock Tracker", layout="wide")
 st.title("📈 Personal Stock Tracker")
-
 st.markdown("Enter your stocks and check if you should **Buy, Sell, or Hold** based on RSI and profit target rules.")
 
+# --- Stock input form ---
 with st.form("stock_form", clear_on_submit=True):
     ticker = st.text_input("Ticker (e.g., AAPL, PTSB.IR)").strip().upper()
     buy_price = st.number_input("Buy Price (€)", min_value=0.0, step=0.01)
@@ -129,6 +132,7 @@ with st.form("stock_form", clear_on_submit=True):
 if "portfolio" not in st.session_state:
     st.session_state.portfolio = []
 
+# --- Add or update stock ---
 if submitted and ticker and buy_price > 0 and shares > 0:
     found = False
     for stock in st.session_state.portfolio:
@@ -148,19 +152,26 @@ if submitted and ticker and buy_price > 0 and shares > 0:
             }
         )
 
+# --- Display portfolio ---
 if st.session_state.portfolio:
     st.subheader("📊 Your Portfolio")
     results = []
-    for stock in st.session_state.portfolio:
+    for i, stock in enumerate(st.session_state.portfolio):
         res = check_personal_stock(stock["ticker"], stock["buy_price"], stock["shares"])
         res["Last Updated"] = stock.get("timestamp", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-
         results.append(res)
 
     df_results = pd.DataFrame(results)
+
+    # --- Add remove buttons ---
+    for idx, stock in enumerate(st.session_state.portfolio):
+        if st.button(f"❌ Remove {stock['ticker']}", key=f"remove_{idx}"):
+            st.session_state.portfolio.pop(idx)
+            st.experimental_rerun()  # Refresh after removal
+
     st.dataframe(df_results, use_container_width=True)
 
-    # Optional: show stock chart for the last selected ticker
+    # --- Optional chart for last stock ---
     last_ticker = st.session_state.portfolio[-1]["ticker"]
     df_chart = fetch_data(last_ticker, period="6mo")
     if df_chart is not None:
