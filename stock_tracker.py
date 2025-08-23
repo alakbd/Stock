@@ -22,6 +22,10 @@
 #RSI between 30–70 → Neutral / Hold
 
 # stock_tracker_app.py
+#!/usr/bin/env python
+# coding: utf-8
+
+# stock_tracker_app.py
 import streamlit as st
 import yfinance as yf
 import pandas as pd
@@ -90,7 +94,11 @@ def check_personal_stock(ticker, buy_price, shares):
     if pd.isna(current_price) or pd.isna(rsi):
         return {"Ticker": ticker, "Error": "No latest data"}
 
-    # Determine action
+    # --- Profit & Loss ---
+    pl_euro = (current_price - buy_price) * shares
+    pl_percent = ((current_price - buy_price) / buy_price) * 100
+
+    # --- Determine action ---
     if current_price >= buy_price * (1 + PROFIT_TARGET) or rsi > 70:
         action = "SELL ❌"
     elif current_price <= buy_price * (1 - DIP_THRESHOLD) or rsi < 35:
@@ -104,6 +112,8 @@ def check_personal_stock(ticker, buy_price, shares):
         "Current Price (€)": round(current_price, 2),
         "Shares": shares,
         "RSI": round(rsi, 2),
+        "P/L (€)": round(pl_euro, 2),
+        "P/L (%)": round(pl_percent, 2),
         "Action": action,
     }
 
@@ -143,7 +153,6 @@ if st.session_state.portfolio:
     if df_chart is not None:
         st.subheader(f"📉 {last_ticker} Price Chart (6mo)")
         st.line_chart(df_chart["Close"])
-
 
 # In[ ]:
 
