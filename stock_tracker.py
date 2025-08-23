@@ -31,6 +31,7 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import warnings
+from datetime import datetime
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
@@ -44,11 +45,9 @@ def calculate_RSI(series, period=14):
     series = pd.to_numeric(series, errors="coerce").dropna()
     if len(series) < period:
         return pd.Series([np.nan] * len(series), index=series.index)
-    
     delta = series.diff()
     gain = delta.clip(lower=0)
     loss = -delta.clip(upper=0)
-    
     avg_gain = gain.rolling(period, min_periods=1).mean()
     avg_loss = loss.rolling(period, min_periods=1).mean()
     rs = avg_gain / avg_loss
@@ -69,11 +68,9 @@ def fetch_data(ticker, period="6mo", interval="1d"):
 def build_frame(df):
     if df is None or df.empty:
         return None
-
     close = df["Close"]
-    if isinstance(close, pd.DataFrame):  # sometimes multi-column
+    if isinstance(close, pd.DataFrame):
         close = close.iloc[:, 0]
-
     close = pd.to_numeric(close, errors="coerce")
     frame = pd.DataFrame(index=df.index)
     frame["Close"] = close
@@ -94,11 +91,11 @@ def check_personal_stock(ticker, buy_price, shares):
     if pd.isna(current_price) or pd.isna(rsi):
         return {"Ticker": ticker, "Error": "No latest data"}
 
-    # --- Profit & Loss ---
+    # Profit / loss
     pl_euro = (current_price - buy_price) * shares
     pl_percent = ((current_price - buy_price) / buy_price) * 100
 
-    # --- Determine action ---
+    # Determine action
     if current_price >= buy_price * (1 + PROFIT_TARGET) or rsi > 70:
         action = "SELL ❌"
     elif current_price <= buy_price * (1 - DIP_THRESHOLD) or rsi < 35:
@@ -124,24 +121,39 @@ st.title("📈 Personal Stock Tracker")
 st.markdown("Enter your stocks and check if you should **Buy, Sell, or Hold** based on RSI and profit target rules.")
 
 with st.form("stock_form", clear_on_submit=True):
-    ticker = st.text_input("Ticker (e.g., AAPL, PTSB.IR)")
+    ticker = st.text_input("Ticker (e.g., AAPL, PTSB.IR)").strip().upper()
     buy_price = st.number_input("Buy Price (€)", min_value=0.0, step=0.01)
     shares = st.number_input("Number of Shares", min_value=1, step=1)
-    submitted = st.form_submit_button("Add Stock")
+    submitted = st.form_submit_button("Add / Update Stock")
 
 if "portfolio" not in st.session_state:
     st.session_state.portfolio = []
 
 if submitted and ticker and buy_price > 0 and shares > 0:
-    st.session_state.portfolio.append(
-        {"ticker": ticker.strip(), "buy_price": buy_price, "shares": shares}
-    )
+    found = False
+    for stock in st.session_state.portfolio:
+        if stock["ticker"] == ticker:
+            stock["buy_price"] = buy_price
+            stock["shares"] = shares
+            stock["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            found = True
+            break
+    if not found:
+        st.session_state.portfolio.append(
+            {
+                "ticker": ticker,
+                "buy_price": buy_price,
+                "shares": shares,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            }
+        )
 
 if st.session_state.portfolio:
     st.subheader("📊 Your Portfolio")
     results = []
     for stock in st.session_state.portfolio:
         res = check_personal_stock(stock["ticker"], stock["buy_price"], stock["shares"])
+        res["Last Updated"] = stock["timestamp"]
         results.append(res)
 
     df_results = pd.DataFrame(results)
