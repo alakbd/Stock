@@ -153,7 +153,8 @@ if st.session_state.portfolio:
     results = []
     for stock in st.session_state.portfolio:
         res = check_personal_stock(stock["ticker"], stock["buy_price"], stock["shares"])
-        res["Last Updated"] = stock["timestamp"]
+        res["Last Updated"] = stock.get("timestamp", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+
         results.append(res)
 
     df_results = pd.DataFrame(results)
@@ -165,6 +166,7 @@ if st.session_state.portfolio:
     if df_chart is not None:
         st.subheader(f"📉 {last_ticker} Price Chart (6mo)")
         st.line_chart(df_chart["Close"])
+
 
 # In[ ]:
 
