@@ -71,13 +71,16 @@ def fetch_data(ticker, period="6mo", interval="1d"):
 def build_frame(df):
     if df is None or df.empty:
         return None
+
     close = df["Close"]
-    if isinstance(close, pd.DataFrame):
+    if isinstance(close, pd.DataFrame):  # sometimes multi-column
         close = close.iloc[:, 0]
+
     close = pd.to_numeric(close, errors="coerce")
     frame = pd.DataFrame(index=df.index)
     frame["Close"] = close
     frame["RSI"] = calculate_RSI(frame["Close"], RSI_PERIOD)
+    frame["SMA50"] = frame["Close"].rolling(50, min_periods=1).mean()  # ✅ add this
     return frame
 
 # --- Check personal stock ---
