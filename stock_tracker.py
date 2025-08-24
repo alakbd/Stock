@@ -63,6 +63,10 @@ def fetch_data(ticker, period="6mo", interval="1d"):
         df = yf.download(ticker, period=period, interval=interval, progress=False)
         if df.empty or "Close" not in df.columns:
             return None
+        # Detect currency from ticker suffix
+        df["Currency"] = "USD"
+        if ticker.endswith(".IR"):
+            df["Currency"] = "EUR"
         return df
     except Exception:
         return None
@@ -109,10 +113,12 @@ def check_personal_stock(ticker, buy_price, shares):
     else:
         action = "HOLD ➖"
 
+# Determine column label for current price
+price_label = "Current Price (€)" if df["Currency"].iloc[-1] == "EUR" else "Current Price ($)"
     return {
         "Ticker": ticker,
         "Buy Price (€)": round(buy_price, 2),
-        "Current Price (€)": round(current_price, 2),
+        "price_label": round(current_price, 2),
         "Shares": shares,
         "RSI": round(rsi, 2),
         "P/L (€)": round(pl_euro, 2),
@@ -245,7 +251,7 @@ if st.session_state.portfolio:
         st.subheader("🧠 Suggested Buys (RSI & momentum)")
         st.caption("Candidates with **RSI ≤ 35** and **5-day % change ≥ 0** (attempting to catch early reversals; not financial advice).")
 
-        default_watchlist = "AAPL, MSFT, NVDA, AMZN, GOOGL, META, TSLA, JPM, V, MA, NFLX, AMD, INTC, TSM, AVGO, PTSB.IR"
+        default_watchlist = "default_watchlist = "AAPL, MSFT, NVDA, AMZN, GOOGL, META, TSLA, JPM, V, MA, NFLX, AMD, INTC, TSM, AVGO, PTSB.IR, AIB.IR, CRH.IR, RDSA.IR"
         watchlist_str = st.text_input(
             "Watchlist (comma-separated tickers):",
             value=default_watchlist,
