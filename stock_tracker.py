@@ -113,16 +113,18 @@ def check_personal_stock(ticker, buy_price, shares):
     else:
         action = "HOLD ➖"
 
-# Determine column label for current price
-price_label = "Current Price (€)" if df["Currency"].iloc[-1] == "EUR" else "Current Price ($)"
+
+# Determine column label for current price based on ticker currency
+    price_label = "Current Price (€)" if df["Currency"].iloc[-1] == "EUR" else "Current Price ($)"
+
     return {
         "Ticker": ticker,
         "Buy Price (€)": round(buy_price, 2),
-        "price_label": round(current_price, 2),
+        price_label: round(current_price, 2),
         "Shares": shares,
         "RSI": round(rsi, 2),
-        "P/L (€)": round(pl_euro, 2),
-        "P/L (%)": round(pl_percent, 2),
+        "P/L (€)": round(profit_loss_eur, 2),
+        "P/L (%)": round(profit_loss_pct, 2),
         "Action": action,
     }
 
