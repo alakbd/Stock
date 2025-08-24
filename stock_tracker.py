@@ -91,7 +91,7 @@ def build_frame(df):
 def check_personal_stock(ticker, buy_price, shares):
     df = fetch_data(ticker)
     frame = build_frame(df)
-    if frame is None:
+    if frame is None or frame.empty:
         return {"Ticker": ticker, "Error": "No data"}
 
     latest = frame.tail(1).iloc[0]
@@ -101,14 +101,14 @@ def check_personal_stock(ticker, buy_price, shares):
     if pd.isna(current_price) or pd.isna(rsi):
         return {"Ticker": ticker, "Error": "No latest data"}
 
-    # Profit / loss
+    # --- Safe Profit / Loss ---
     invested = buy_price * shares
     current_value = current_price * shares
 
-    pl_euro = (current_price - buy_price) * shares
-    pl_percent = ((current_price - buy_price) / buy_price) * 100
+    pl_euro = float(current_value - invested) if pd.notna(current_value) else 0.0
+    pl_percent = (pl_euro / invested * 100) if invested > 0 else 0.0
 
-    # Determine action
+    # --- Action ---
     if current_price >= buy_price * (1 + PROFIT_TARGET) or rsi > 70:
         action = "SELL ❌"
     elif current_price <= buy_price * (1 - DIP_THRESHOLD) or rsi < 35:
@@ -116,9 +116,8 @@ def check_personal_stock(ticker, buy_price, shares):
     else:
         action = "HOLD ➖"
 
-
-# Determine column label for current price based on ticker currency
-    price_label = "Current Price (€)" if df["Currency"].iloc[-1] == "EUR" else "Current Price ($)"
+    # --- Currency-aware column ---
+    price_label = "Current Price (€)" if ticker.endswith(".IR") else "Current Price ($)"
 
     return {
         "Ticker": ticker,
@@ -126,11 +125,10 @@ def check_personal_stock(ticker, buy_price, shares):
         price_label: round(current_price, 2),
         "Shares": shares,
         "RSI": round(rsi, 2),
-        "P/L (€)": round(profit_loss_eur, 2),
-        "P/L (%)": round(profit_loss_pct, 2),
+        "P/L (€)": round(pl_euro, 2),
+        "P/L (%)": round(pl_percent, 2),
         "Action": action,
     }
-
 # --- NEW: Scan a watchlist and suggest buys ---
 def analyze_watchlist(tickers, rsi_threshold=35):
     rows = []
