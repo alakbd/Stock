@@ -102,6 +102,9 @@ def check_personal_stock(ticker, buy_price, shares):
         return {"Ticker": ticker, "Error": "No latest data"}
 
     # Profit / loss
+    invested = buy_price * shares
+    current_value = current_price * shares
+
     pl_euro = (current_price - buy_price) * shares
     pl_percent = ((current_price - buy_price) / buy_price) * 100
 
