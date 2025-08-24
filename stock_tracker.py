@@ -115,7 +115,7 @@ def check_personal_stock(ticker, buy_price, shares):
 
 # Determine column label for current price
 price_label = "Current Price (€)" if df["Currency"].iloc[-1] == "EUR" else "Current Price ($)"
-  return {
+    return {
         "Ticker": ticker,
         "Buy Price (€)": round(buy_price, 2),
         "price_label": round(current_price, 2),
