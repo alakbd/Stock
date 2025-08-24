@@ -253,7 +253,7 @@ if st.session_state.portfolio:
         st.subheader("🧠 Suggested Buys (RSI & momentum)")
         st.caption("Candidates with **RSI ≤ 35** and **5-day % change ≥ 0** (attempting to catch early reversals; not financial advice).")
 
-        default_watchlist = "default_watchlist = "AAPL, MSFT, NVDA, AMZN, GOOGL, META, TSLA, JPM, V, MA, NFLX, AMD, INTC, TSM, AVGO, PTSB.IR, AIB.IR, CRH.IR, RDSA.IR""
+        default_watchlist = "AAPL, MSFT, NVDA, AMZN, GOOGL, META, TSLA, JPM, V, MA, NFLX, AMD, INTC, TSM, AVGO, PTSB.IR, AIB.IR, CRH.IR, RDSA.IR"
         watchlist_str = st.text_input(
             "Watchlist (comma-separated tickers):",
             value=default_watchlist,
